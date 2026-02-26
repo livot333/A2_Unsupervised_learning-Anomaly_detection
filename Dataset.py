@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib as mtp 
 import matplotlib.pyplot as plt 
 import os
+import seaborn as sns
 
 
 class DatasetOperations:
@@ -189,4 +190,84 @@ class DatasetOperations:
         update_plot()
         plt.show()
 
+    def correlation_check(self, mode, correlation_outfile_path, corr_calc_method="spearman"):
+        """
+        Performs correlation analysis and exports a structured 7-column CSV report.
+        Format: Channel_ID | Internal_Type | Internal_Name | Internal_Value | External_Type | External_Name | External_Value
+        """
+        data_dict = self.train_data_dict if mode == "train" else self.test_data_dict
+        if not data_dict:
+            print("No data loaded to analyze.")
+            return
+
+        # 1. Inter-Channel Heatmap Visualization
+        min_len = min(d.shape[0] for d in data_dict.values())
+        inter_df = pd.DataFrame({cid: data_dict[cid][:min_len, 0] for cid in data_dict.keys()})
+        inter_corr_matrix = inter_df.corr(method=corr_calc_method)
+
+        plt.figure(figsize=(12, 10))
+        sns.heatmap(inter_corr_matrix, annot=False, cmap='coolwarm', center=0)
+        plt.title(f"Inter-Channel Telemetry Correlation ({mode.upper()})")
+        plt.show()
+
+        # 2. Building the Side-by-Side CSV report
+        all_rows = []
+
+        for channel_id, data in data_dict.items():
+            # A. Internal: Telemetry vs Commands
+            num_cols = data.shape[1]
+            df_intra = pd.DataFrame(data, columns=['Telemetry'] + [f'Cmd_{i}' for i in range(1, num_cols)])
+            intra_corr = df_intra.corr(method=corr_calc_method)['Telemetry'].drop('Telemetry')
+            top_10_intra = intra_corr.abs().sort_values(ascending=False).head(5)
+
+            df_intra = df_intra.loc[:, (df_intra != df_intra.iloc[0]).any()]
+
+
+            # B. External: This Channel vs All Others
+            inter_corr = inter_corr_matrix[channel_id].drop(channel_id)
+            top_10_inter = inter_corr.abs().sort_values(ascending=False).head(5)
+
+            # C. Merge both Top 10 lists into rows
+            intra_list = list(top_10_intra.items())
+            inter_list = list(top_10_inter.items())
+
+            for i in range(5):
+                row = {'Channel_ID': channel_id if i == 0 else ''}
+                
+                # Internal Feature Columns
+                if i < len(intra_list):
+                    feat_name, _ = intra_list[i]
+                    row['Intra_Type'] = 'INTERNAL'
+                    row['Intra_Feature'] = feat_name
+                    row['Intra_Corr'] = intra_corr[feat_name]
+                else:
+                    row['Intra_Type'], row['Intra_Feature'], row['Intra_Corr'] = '', '', ''
+
+                # External Channel Columns
+                if i < len(inter_list):
+                    other_ch, _ = inter_list[i]
+                    row['Inter_Type'] = 'EXTERNAL'
+                    row['Inter_Channel'] = other_ch
+                    row['Inter_Corr'] = inter_corr[other_ch]
+                else:
+                    row['Inter_Type'], row['Inter_Channel'], row['Inter_Corr'] = '', '', ''
+
+                all_rows.append(row)
+
+            # D. Add an empty row between channels for better visibility in Excel
+            all_rows.append({k: '' for k in row.keys()})
+
+        # 3. Exporting to CSV
+        report_df = pd.DataFrame(all_rows)
+        full_path = os.path.join(correlation_outfile_path, 'correlation_report.csv')
+                
+        report_df.to_csv(
+            full_path, 
+            index=False, 
+            sep=";", 
+            decimal=",", 
+            escapechar=";"
+        )
+        print(f"Detailed correlation report saved to: {full_path}")
         
+        return report_df
