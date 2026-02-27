@@ -1,10 +1,14 @@
 from Dataset import DatasetOperations 
 
-train_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\test"
-test_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\train"
-result_file_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\labeled_anomalies.csv"
+import os
 
-correlation_outfile_path = r"D:\SKOLA\NTNU\MLL\Assingment_2"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+train_path =  join(BASE_DIR, "archive", "data", "data", "train")
+test_path = os.path.join(BASE_DIR, "archive", "data", "data", "test")
+result_file_path = os.path.join(BASE_DIR, "archive", "labeled_anomalies.csv")
+
+correlation_outfile_path = BASE_DIR
 
 
 dt = DatasetOperations(test_path=test_path,train_path=train_path,results_path=result_file_path)
