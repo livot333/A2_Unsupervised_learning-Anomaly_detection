@@ -224,7 +224,7 @@ class DatasetOperations:
 
 
 
-    def correlation_check(self, mode,correlation_csv_report, correlation_outfile_path, corr_calc_method):
+    def correlation_check(self, mode,correlation_csv_report = False, correlation_outfile_path = None, corr_calc_method="spearman"):
         """
         Performs correlation analysis and exports a structured 7-column CSV report.
         Format: Channel_ID | Internal_Type | Internal_Name | Internal_Value | External_Type | External_Name | External_Value
