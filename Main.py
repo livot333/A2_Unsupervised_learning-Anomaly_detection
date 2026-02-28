@@ -12,7 +12,7 @@ dt = DatasetOperations(test_path=test_path,train_path=train_path,results_path=re
 train_dataset, test_dataset , results = dt.load_data()
 dt.dataset_info()
 dt_plt = dt.plot_data(choosen_dataset="training_dataset",start_channel_id="A1")
-correlation_dictionary = dt.correlation_check(mode="training_dataset",correlation_csv_report=True,correlation_outfile_path=correlation_outfile_path,corr_calc_method="spearman")
+correlation_dictionary = dt.correlation_check(mode="training_dataset",correlation_csv_report=False,correlation_outfile_path=correlation_outfile_path,corr_calc_method="spearman")
 train_data_clustered_by_corr = dt.sort_by_corr(sorting_threshold=0.60, remove_files=False,remove_threshold=None)
 train_subset,test_subset = dt.select_subset(random_selection=True, manual_file_names=None, subset_size=10, seed=42)
 
