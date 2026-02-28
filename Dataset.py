@@ -4,6 +4,8 @@ import matplotlib as mtp
 import matplotlib.pyplot as plt 
 import os
 import seaborn as sns
+import networkx as nx
+import random
 
 
 class DatasetOperations:
@@ -16,12 +18,13 @@ class DatasetOperations:
         self.test_data_dict = {}
         self.labels_df = None
 
-    def load_data(self):
+    def load_data(self,treshold_4_normalization = 1.5):
         '''
         loads dataset into three dictionaries: 
         1.train_data_dict
         2.test_data_dict
         3. labels_df 
+        if values are above 1.5 normalizes them
         '''
         # 1. Load Training Data
         try:
@@ -33,11 +36,26 @@ class DatasetOperations:
                     channel_id = file_name.replace('.npy', '')
                     path = os.path.join(self.train_file_path, file_name)
                     data = np.load(path)
+
+                    telemetry = data[:, 0]
+                    if np.max(np.abs(telemetry)) > treshold_4_normalization: # Pokud je hodnota vyšší než 2 (rezerva pro -1, 1)
+                        print(f"  --> Scaling unnormalized channel: {channel_id} (Max value: {np.max(telemetry)})")
+                        
+                        # Min-Max Scaling do rozsahu [-1, 1]
+                        t_min = np.min(telemetry)
+                        t_max = np.max(telemetry)
+                        
+                        # Ošetření dělení nulou pro konstantní soubory
+                        if t_max - t_min != 0:
+                            data[:, 0] = ((telemetry - t_min) / (t_max - t_min)) * 2 - 1
+                        else:
+                            data[:, 0] = 0
                     
                     if data.size == 0:
                         print(f"Warning: {file_name} is empty.")
                     else:
                         self.train_data_dict[channel_id] = data
+
             print(f"Successfully loaded {len(self.train_data_dict)} train channels.")
         except Exception as e:
             print(f"Error loading train data: {e}")
@@ -52,7 +70,21 @@ class DatasetOperations:
                     channel_id = file_name.replace('.npy', '')
                     path = os.path.join(self.test_file_path, file_name)
                     data = np.load(path)
-                    
+
+                    telemetry = data[:, 0]
+                    if np.max(np.abs(telemetry)) > treshold_4_normalization: # Pokud je hodnota vyšší než 2 (rezerva pro -1, 1)
+                        print(f"  --> Scaling unnormalized channel: {channel_id} (Max value: {np.max(telemetry)})")
+                        
+                        # Min-Max Scaling do rozsahu [-1, 1]
+                        t_min = np.min(telemetry)
+                        t_max = np.max(telemetry)
+                        
+                        # Ošetření dělení nulou pro konstantní soubory
+                        if t_max - t_min != 0:
+                            data[:, 0] = ((telemetry - t_min) / (t_max - t_min)) * 2 - 1
+                        else:
+                            data[:, 0] = 0
+                                    
                     if data.size == 0:
                         print(f"Warning: {file_name} is empty.")
                     else:
@@ -190,7 +222,9 @@ class DatasetOperations:
         update_plot()
         plt.show()
 
-    def correlation_check(self, mode, correlation_outfile_path, corr_calc_method="spearman"):
+
+
+    def correlation_check(self, mode,correlation_csv_report, correlation_outfile_path, corr_calc_method):
         """
         Performs correlation analysis and exports a structured 7-column CSV report.
         Format: Channel_ID | Internal_Type | Internal_Name | Internal_Value | External_Type | External_Name | External_Value
@@ -209,65 +243,177 @@ class DatasetOperations:
         sns.heatmap(inter_corr_matrix, annot=False, cmap='coolwarm', center=0)
         plt.title(f"Inter-Channel Telemetry Correlation ({mode.upper()})")
         plt.show()
-
-        # 2. Building the Side-by-Side CSV report
-        all_rows = []
-
-        for channel_id, data in data_dict.items():
-            # A. Internal: Telemetry vs Commands
-            num_cols = data.shape[1]
-            df_intra = pd.DataFrame(data, columns=['Telemetry'] + [f'Cmd_{i}' for i in range(1, num_cols)])
-            intra_corr = df_intra.corr(method=corr_calc_method)['Telemetry'].drop('Telemetry')
-            top_10_intra = intra_corr.abs().sort_values(ascending=False).head(5)
-
-            df_intra = df_intra.loc[:, (df_intra != df_intra.iloc[0]).any()]
+        self.inter_corr_matrix = inter_corr_matrix
 
 
-            # B. External: This Channel vs All Others
-            inter_corr = inter_corr_matrix[channel_id].drop(channel_id)
-            top_10_inter = inter_corr.abs().sort_values(ascending=False).head(5)
+        if correlation_csv_report == True:
+            # 2. Building the Side-by-Side CSV report
+            all_rows = []
 
-            # C. Merge both Top 10 lists into rows
-            intra_list = list(top_10_intra.items())
-            inter_list = list(top_10_inter.items())
+            for channel_id, data in data_dict.items():
+                # A. Internal: Telemetry vs Commands
+                num_cols = data.shape[1]
+                df_intra = pd.DataFrame(data, columns=['Telemetry'] + [f'Cmd_{i}' for i in range(1, num_cols)])
+                intra_corr = df_intra.corr(method=corr_calc_method)['Telemetry'].drop('Telemetry')
+                top_10_intra = intra_corr.abs().sort_values(ascending=False).head(5)
 
-            for i in range(5):
-                row = {'Channel_ID': channel_id if i == 0 else ''}
+                df_intra = df_intra.loc[:, (df_intra != df_intra.iloc[0]).any()]
+
+
+                # B. External: This Channel vs All Others
+                inter_corr = inter_corr_matrix[channel_id].drop(channel_id)
+                top_10_inter = inter_corr.abs().sort_values(ascending=False).head(5)
+
+                # C. Merge both Top 10 lists into rows
+                intra_list = list(top_10_intra.items())
+                inter_list = list(top_10_inter.items())
+
+                for i in range(5):
+                    row = {'Channel_ID': channel_id if i == 0 else ''}
+                    
+                    # Internal Feature Columns
+                    if i < len(intra_list):
+                        feat_name, _ = intra_list[i]
+                        row['Intra_Type'] = 'INTERNAL'
+                        row['Intra_Feature'] = feat_name
+                        row['Intra_Corr'] = intra_corr[feat_name]
+                    else:
+                        row['Intra_Type'], row['Intra_Feature'], row['Intra_Corr'] = '', '', ''
+
+                    # External Channel Columns
+                    if i < len(inter_list):
+                        other_ch, _ = inter_list[i]
+                        row['Inter_Type'] = 'EXTERNAL'
+                        row['Inter_Channel'] = other_ch
+                        row['Inter_Corr'] = inter_corr[other_ch]
+                    else:
+                        row['Inter_Type'], row['Inter_Channel'], row['Inter_Corr'] = '', '', ''
+
+                    all_rows.append(row)
+
+                # D. Add an empty row between channels for better visibility in Excel
+                all_rows.append({k: '' for k in row.keys()})
+
+            # 3. Exporting to CSV
+            report_df = pd.DataFrame(all_rows)
+            full_path = os.path.join(correlation_outfile_path, 'correlation_report.csv')
+                    
+            report_df.to_csv(
+                full_path, 
+                index=False, 
+                sep=";", 
+                decimal=",", 
+                escapechar=";"
+            )
+            print(f"Detailed correlation report saved to: {full_path}")
+            
+            return report_df
+
+
+    def sort_by_corr(self, sorting_threshold, remove_files = False, remove_threshold=None):
+        """
+        Uses an existing correlation matrix to group channels into clusters.
+        """
+        if self.inter_corr_matrix is None:
+            print("Error: No correlation matrix provided for clustering.")
+            return []
+
+       
+        G = nx.Graph()
+        channels = self.inter_corr_matrix.columns
+        G.add_nodes_from(channels)
+
+        for i in range(len(channels)):
+            for j in range(i + 1, len(channels)):
+                if abs(self.inter_corr_matrix.iloc[i, j]) >= sorting_threshold:
+                    G.add_edge(channels[i], channels[j])
+
+        # Získáme surové shluky
+        raw_clusters = [list(c) for c in nx.connected_components(G)]
+        raw_clusters.sort(key=len, reverse=True)
+
+        final_clusters = []
+        removed_count = 0
+
+        # 2. Filtrace shluků (pokud je remove_files zapnuto)
+        print(f"\n{'='*60}")
+        print(f"CLUSTERING & CLEANING REPORT (Sort: {sorting_threshold} | Remove: {remove_threshold})")
+        print(f"{'='*60}")
+
+        for cluster in raw_clusters:
+            if not remove_files:
+                # Pokud nečistíme, necháme shluk tak, jak je
+                final_clusters.append(cluster)
+                continue
+            
+            # Čistící logika:
+            leader = cluster[0]
+            new_cluster = [leader] # Vůdce vždy zůstává
+            
+            for member in cluster[1:]:
+                # Kontrolujeme korelaci člena vůči vůdci skupiny
+                correlation_with_leader = abs(self.inter_corr_matrix.loc[leader, member])
                 
-                # Internal Feature Columns
-                if i < len(intra_list):
-                    feat_name, _ = intra_list[i]
-                    row['Intra_Type'] = 'INTERNAL'
-                    row['Intra_Feature'] = feat_name
-                    row['Intra_Corr'] = intra_corr[feat_name]
+                if correlation_with_leader >= remove_threshold:
+                    # Soubor je redundantní -> smažeme ho z datasetů
+                    if member in self.train_data_dict: del self.train_data_dict[member]
+                    if member in self.test_data_dict: del self.test_data_dict[member]
+                    removed_count += 1
                 else:
-                    row['Intra_Type'], row['Intra_Feature'], row['Intra_Corr'] = '', '', ''
+                    # Soubor není dostatečně podobný vůdci -> necháme ho ve shluku
+                    new_cluster.append(member)
+            
+            final_clusters.append(new_cluster)
 
-                # External Channel Columns
-                if i < len(inter_list):
-                    other_ch, _ = inter_list[i]
-                    row['Inter_Type'] = 'EXTERNAL'
-                    row['Inter_Channel'] = other_ch
-                    row['Inter_Corr'] = inter_corr[other_ch]
-                else:
-                    row['Inter_Type'], row['Inter_Channel'], row['Inter_Corr'] = '', '', ''
-
-                all_rows.append(row)
-
-            # D. Add an empty row between channels for better visibility in Excel
-            all_rows.append({k: '' for k in row.keys()})
-
-        # 3. Exporting to CSV
-        report_df = pd.DataFrame(all_rows)
-        full_path = os.path.join(correlation_outfile_path, 'correlation_report.csv')
-                
-        report_df.to_csv(
-            full_path, 
-            index=False, 
-            sep=";", 
-            decimal=",", 
-            escapechar=";"
-        )
-        print(f"Detailed correlation report saved to: {full_path}")
+        # 3. Výpis výsledků
+        if remove_files:
+            print(f"ACTION: Removed {removed_count} redundant files from memory.")
+            print(f"RESULT: {len(self.train_data_dict)} channels remaining in dictionaries.")
         
-        return report_df
+        # Výpis složení (jen pro shluky, kde něco zbylo)
+        for idx, c in enumerate([cl for cl in final_clusters if len(cl) > 1], 1):
+            print(f" Group {idx:02d}: {', '.join(c)}")
+
+        print(f"{'='*60}\n")
+        
+        return final_clusters
+    
+
+    def select_subset(self, random_selection=True, manual_file_names=None, subset_size=10, seed=42):
+        """
+        Vybere podmnožinu dat a vrátí dva slovníky: (train_subset, test_subset).
+        """
+        # Získáme všechny dostupné ID kanálů z trénovacích dat
+        all_channels = list(self.train_data_dict.keys())
+        
+        if random_selection:
+            # Fixní náhoda díky seedu
+            random.seed(seed)
+            actual_size = min(subset_size, len(all_channels))
+            selected_keys = random.sample(all_channels, actual_size)
+            print(f"Randomly selected {len(selected_keys)} files (seed={seed}).")
+        
+        elif manual_file_names:
+            # Ruční výběr podle seznamu
+            selected_keys = [f for f in manual_file_names if f in all_channels]
+            missing = set(manual_file_names) - set(selected_keys)
+            if missing:
+                print(f"Warning: Files not found in dataset: {missing}")
+            print(f"Manually selected {len(selected_keys)} files.")
+        
+        else:
+            # Fallback: vezme prostě prvních N
+            selected_keys = all_channels[:subset_size]
+            print(f"Fallback: selected first {len(selected_keys)} files.")
+
+        # Vytvoření nových pročištěných slovníků
+        train_subset = {k: self.train_data_dict[k] for k in selected_keys if k in self.train_data_dict}
+        test_subset = {k: self.test_data_dict[k] for k in selected_keys if k in self.test_data_dict}
+
+        # Aktualizace vnitřního stavu třídy (aby i ostatní metody pracovaly s tímto výběrem)
+        self.train_data_dict = train_subset
+        self.test_data_dict = test_subset
+        print(f"Selected files: {list(train_subset.keys())}")
+
+        # VRACÍME DVA OBJEKTY
+        return train_subset, test_subset
