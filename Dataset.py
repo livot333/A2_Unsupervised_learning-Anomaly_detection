@@ -160,7 +160,7 @@ class DatasetOperations:
 
 
 
-    def plot_data(self, choosen_dataset="training_dataset", start_channel_id="A-3"):
+    def plot_data(self, choosen_dataset="testing_dataset", start_channel_id="P-1"):
         """
         Interactive plot that allows browsing through channels using 'n' and 'b' keys.
         """
