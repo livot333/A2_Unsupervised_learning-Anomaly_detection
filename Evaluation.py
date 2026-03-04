@@ -62,6 +62,10 @@ class EvaluateResults:
         """
         evaluation_results = []
 
+        total_tp = 0
+        total_fp = 0
+        total_fn = 0
+
         for chan_id, predicted_indices in predictions_dict.items():
             if chan_id not in self.solution_dict:
                 continue
@@ -85,9 +89,15 @@ class EvaluateResults:
             fp = np.sum((y_true == 0) & (y_pred == 1))
             fn = np.sum((y_true == 1) & (y_pred == 0))
 
+            
+
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0
             f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+
+            total_tp += tp
+            total_fp += fp
+            total_fn += fn
 
             evaluation_results.append({
                 'Channel': chan_id,
@@ -98,43 +108,64 @@ class EvaluateResults:
                 'Pred_Points': int(np.sum(y_pred)),
                 'TP': int(tp),
                 'FP': int(fp),
+                'FN': int(fn)
                 })
+            
+
+            report_df = pd.DataFrame(evaluation_results)
+            macro_f1 = report_df['F1_Score'].mean()
+
+            # 2. Micro F1 (Z globálních součtů)
+            micro_prec = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
+            micro_rec = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0
+            micro_f1 = 2 * (micro_prec * micro_rec) / (micro_prec + micro_rec) if (micro_prec + micro_rec) > 0 else 0
+
+            print(f"\n=== Overall model evaluation ===")
+            print(f"Macro-Average F1: {macro_f1:.4f}  (average sucessfull rate per chanel)")
+            print(f"Micro-Average F1: {micro_f1:.4f}  (total sucess rate for all points)")
                  
-        return pd.DataFrame(evaluation_results)
+        return report_df
+    
     
     def plot_hits_vs_misses(self, report_df):
         """
-        Vytvoří sloupcový graf srovnávající počet tref (TP) a falešných poplachů (FP).
-        
-        Args:
-            report_df: DataFrame, který vrací metoda compare_methods_results.
-                       Musí obsahovat sloupce 'Channel', 'TP' a 'FP'.
+        Creates a grouped bar chart comparing TP (Hits), FP (Misses), and FN (Missed).
         """
+        # Data preparation
         channels = report_df['Channel']
         hits = report_df['TP']
         misses = report_df['FP']
+        # We ensure FN is in the report_df or calculate it from other columns
+        not_found = report_df['FN'] if 'FN' in report_df.columns else (report_df['True_Points'] - report_df['TP'])
 
-        x = np.arange(len(channels))  # Pozice na ose X
-        width = 0.35  # Šířka sloupců
+        x = np.arange(len(channels))  # Label locations
+        width = 0.25  # Width of each bar - reduced to fit 3 side-by-side
 
-        fig, ax = plt.subplots(figsize=(14, 7))
+        fig, ax = plt.subplots(figsize=(15, 8))
         
-        # Vykreslení dvou sloupců pro každý kanál
-        rects1 = ax.bar(x - width/2, hits, width, label='Hits (True Positives)', color='forestgreen')
-        rects2 = ax.bar(x + width/2, misses, width, label='Misses (False Positives)', color='crimson')
+        # Plotting the three bars with high-quality colors
+        # TP = Success (Green), FP = False Alarm (Red), FN = Missed Reality (Blue)
+        rects1 = ax.bar(x - width, hits, width, label='Hits (True Positives)', color='#2ca02c', edgecolor='white')
+        rects2 = ax.bar(x, misses, width, label='Misses (False Positives)', color='#d62728', edgecolor='white')
+        rects3 = ax.bar(x + width, not_found, width, label='Missed (False Negatives)', color='#1f77b4', edgecolor='white')
 
-        # Popisky a design
-        ax.set_ylabel('Počet datových bodů')
-        ax.set_xlabel('Kanál (Soubor)')
-        ax.set_title('Srovnání úspěšných zásahů a falešných poplachů podle PCA')
+        # Text and Styling (All in English)
+        ax.set_ylabel('Data Point Count', fontsize=12, fontweight='bold')
+        ax.set_xlabel('Channel ID', fontsize=12, fontweight='bold')
+        ax.set_title('Anomaly Detection Performance: PCA Reconstruction Method', fontsize=16, fontweight='bold', pad=20)
         ax.set_xticks(x)
-        ax.set_xticklabels(channels, rotation=45)
-        ax.legend()
+        ax.set_xticklabels(channels, rotation=45, ha='right')
+        ax.legend(fontsize=11, frameon=True, shadow=True)
 
-        # Přidání čísel nad sloupce (volitelné)
-        ax.bar_label(rects1, padding=3)
-        ax.bar_label(rects2, padding=3)
+        # Adding values on top of bars for precision
+        ax.bar_label(rects1, padding=3, fontsize=9, color='#1a1a1a')
+        ax.bar_label(rects2, padding=3, fontsize=9, color='#1a1a1a')
+        ax.bar_label(rects3, padding=3, fontsize=9, color='#1a1a1a')
 
+        # Aesthetics
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        plt.grid(axis='y', linestyle='--', alpha=0.4)
+        
         fig.tight_layout()
-        plt.grid(axis='y', linestyle='--', alpha=0.6)
         plt.show()

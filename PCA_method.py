@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA as sk_PCA
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
 import ast
 
 class BatchPCA:
@@ -30,6 +31,7 @@ class BatchPCA:
             
             # 1. Scale and Fit
             scaler = StandardScaler()
+            # scaler = RobustScaler()
             pca = sk_PCA(n_components=n_components)
             
             scaled_data = scaler.fit_transform(data)
