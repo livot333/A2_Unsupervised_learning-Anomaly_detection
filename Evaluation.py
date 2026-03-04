@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import ast
 import matplotlib.pyplot as plt
+import re
+
 
 class EvaluateResults:
     def __init__(self):
@@ -18,23 +20,29 @@ class EvaluateResults:
             labels_df: The DataFrame returned by your dataset loading function.
         """
         if labels_df is None or labels_df.empty:
-            print("Error: Provided labels DataFrame is empty or None.")
+            print("Error: Labels DataFrame is empty.")
             return None
 
         for _, row in labels_df.iterrows():
             chan_id = row['chan_id']
             
-            # 1. Handle sequences: convert string "[[550, 750]]" to real list if needed
+            # 1. Sequences are usually fine (they are numbers: [[1, 2]])
             sequences = row['anomaly_sequences']
             if isinstance(sequences, str):
                 sequences = ast.literal_eval(sequences)
             
-            # 2. Handle class: convert string "[point]" to real list if needed
+            # 2. FIX: Handle the 'class' column strings without quotes
             anomaly_class = row['class']
             if isinstance(anomaly_class, str):
-                anomaly_class = ast.literal_eval(anomaly_class)
+                try:
+                    # Regex finds words and wraps them in double quotes
+                    # e.g., [point, contextual] -> ["point", "contextual"]
+                    sanitized_class = re.sub(r'([a-zA-Z_]\w*)', r'"\1"', anomaly_class)
+                    anomaly_class = ast.literal_eval(sanitized_class)
+                except Exception:
+                    # Fallback if regex fails - keep it as a raw string
+                    anomaly_class = [anomaly_class]
 
-            # 3. Build the dictionary
             self.solution_dict[chan_id] = {
                 'spacecraft': row['spacecraft'],
                 'sequences': sequences,
@@ -87,9 +95,11 @@ class EvaluateResults:
                 'Recall': round(recall, 4),
                 'F1_Score': round(f1, 4),
                 'True_Points': int(np.sum(y_true)),
-                'Pred_Points': int(np.sum(y_pred))
-            })
-
+                'Pred_Points': int(np.sum(y_pred)),
+                'TP': int(tp),
+                'FP': int(fp),
+                })
+                 
         return pd.DataFrame(evaluation_results)
     
     def plot_hits_vs_misses(self, report_df):

@@ -42,102 +42,39 @@ class BatchPCA:
             var_exp = np.sum(pca.explained_variance_ratio_) * 100
             print(f" Channel {cid:6}: Explained Variance {var_exp:6.2f}%")
 
-    def get_batch_reconstruction_errors(self, mode="test"):
+    def get_PCA_predictions(self, mode="test", threshold_percentile=98):
         """
-        Calculates reconstruction errors for all fitted channels.
-        Returns a dictionary: {channel_id: error_array}
+        Calculates reconstruction errors and converts them directly into 
+        outlier indices for the evaluation structure.
+        
+        Returns:
+            predictions_dict: { 'chan_id': [list_of_outlier_indices] }
         """
         data_source = self.test_dict if mode == "test" else self.train_dict
-        all_errors = {}
+        predictions_dict = {}
 
         for cid, pca in self.models.items():
             if cid in data_source:
                 data = data_source[cid]
                 scaler = self.scalers[cid]
                 
-                # Transform -> Inverse Transform
+                # 1. Standard reconstruction process
                 scaled_data = scaler.transform(data)
                 reduced = pca.transform(scaled_data)
                 reconstructed_scaled = pca.inverse_transform(reduced)
                 
-                # Calculate MSE (Mean Squared Error) per row
+                # 2. Calculate MSE per row
                 mse = np.mean(np.power(scaled_data - reconstructed_scaled, 2), axis=1)
-                all_errors[cid] = mse
                 
-        return all_errors
-
-    def plot_summary(self, errors_dict):
-        """
-        Visualizes the average error per channel to quickly spot problematic sensors.
-        """
-        avg_errors = {cid: np.mean(err) for cid, err in errors_dict.items()}
-        
-        plt.figure(figsize=(12, 5))
-        plt.bar(avg_errors.keys(), avg_errors.values(), color='salmon')
-        plt.xticks(rotation=45)
-        plt.ylabel("Mean Reconstruction Error")
-        plt.title("Average Anomaly Score across Channels")
-        plt.grid(axis='y', linestyle='--', alpha=0.7)
-        plt.show()
-
-
-    def evaluate_pca_anomalies(self,errors_dict, labels_df, threshold_percentile=None):
-        """
-        Compares PCA reconstruction errors with NASA ground truth labels.
-        
-        Args:
-            errors_dict: Dictionary {channel_id: np.array of errors} from PCA.
-            labels_df: The DataFrame you shared (containing 'chan_id' and 'anomaly_sequences').
-            threshold_percentile: Top X% of errors to be flagged as anomalies (default 5%).
-        """
-        results = []
-
-        for chan_id, errors in errors_dict.items():
-            # 1. Get ground truth for this channel
-            label_row = labels_df[labels_df['chan_id'] == chan_id]
-            if label_row.empty:
-                continue
+                # 3. Apply threshold to get indices
+                # We calculate the threshold dynamically for each channel
+                current_threshold = np.percentile(mse, threshold_percentile)
                 
-            # Get total length and ground truth ranges
-            num_values = label_row.iloc[0]['num_values']
-            
-            # Safe conversion of string "[[start, end], ...]" to Python list
-            sequences = label_row.iloc[0]['anomaly_sequences']
-            if isinstance(sequences, str):
-                sequences = ast.literal_eval(sequences)
+                # Find positions where error is above threshold
+                outlier_indices = np.where(mse >= current_threshold)[0]
                 
-            # Create Ground Truth Mask (array of 0s and 1s)
-            y_true = np.zeros(num_values)
-            for start, end in sequences:
-                y_true[start : end + 1] = 1 # inclusive range
+                # 4. Store as a list of indices
+                predictions_dict[cid] = outlier_indices.tolist()
                 
-            # 2. Create Prediction Mask using a threshold
-            # We flag the top X% of highest errors as anomalies
-            threshold = np.percentile(errors, threshold_percentile)
-            y_pred = (errors >= threshold).astype(int)
-            
-            # Align lengths (NASA labels are for the full test file)
-            # Ensure we compare only the overlapping part
-            min_len = min(len(y_true), len(y_pred))
-            y_true = y_true[:min_len]
-            y_pred = y_pred[:min_len]
-            
-            # 3. Calculate metrics
-            tp = np.sum((y_true == 1) & (y_pred == 1))
-            fp = np.sum((y_true == 0) & (y_pred == 1))
-            fn = np.sum((y_true == 1) & (y_pred == 0))
-            
-            precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-            recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-            f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
-            
-            results.append({
-                'Channel': chan_id,
-                'Precision': round(precision, 4),
-                'Recall': round(recall, 4),
-                'F1_Score': round(f1, 4),
-                'True_Anom_Points': int(np.sum(y_true)),
-                'Detected_Points': int(np.sum(y_pred))
-            })
-            
-        return pd.DataFrame(results)
+        return predictions_dict
+
