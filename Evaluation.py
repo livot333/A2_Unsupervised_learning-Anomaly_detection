@@ -113,17 +113,17 @@ class EvaluateResults:
             
 
             report_df = pd.DataFrame(evaluation_results)
-            macro_f1 = report_df['F1_Score'].mean()
+        macro_f1 = report_df['F1_Score'].mean()
 
-            # 2. Micro F1 (Z globálních součtů)
-            micro_prec = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
-            micro_rec = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0
-            micro_f1 = 2 * (micro_prec * micro_rec) / (micro_prec + micro_rec) if (micro_prec + micro_rec) > 0 else 0
+        # 2. Micro F1 (Z globálních součtů)
+        micro_prec = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
+        micro_rec = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0
+        micro_f1 = 2 * (micro_prec * micro_rec) / (micro_prec + micro_rec) if (micro_prec + micro_rec) > 0 else 0
 
-            print(f"\n=== Overall model evaluation ===")
-            print(f"Macro-Average F1: {macro_f1:.4f}  (average sucessfull rate per chanel)")
-            print(f"Micro-Average F1: {micro_f1:.4f}  (total sucess rate for all points)")
-                 
+        print(f"\n=== Overall model evaluation ===")
+        print(f"Macro-Average F1: {macro_f1:.4f}  (average sucessfull rate per chanel)")
+        print(f"Micro-Average F1: {micro_f1:.4f}  (total sucess rate for all points)")
+                
         return report_df
     
     

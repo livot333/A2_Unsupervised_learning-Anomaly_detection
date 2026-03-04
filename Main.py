@@ -2,6 +2,7 @@ from Dataset import DatasetOperations
 from PCA_method import BatchPCA
 import os
 from Evaluation import EvaluateResults
+from GausianMixtureModel import GMM
 
 train_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\test"
 test_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\train"
@@ -26,13 +27,22 @@ evaluation = EvaluateResults()
 evaluation.load_solution(results)
 
 # ===================================== PCA ====================================
-bpca = BatchPCA(train_subset, test_subset)
-bpca.fit_all(n_components=20)
-PCA_test_errors = bpca.get_PCA_predictions(mode="test",threshold_percentile=50)
-PCA_result = evaluation.compare_methods_results(predictions_dict=PCA_test_errors)
-evaluation.plot_hits_vs_misses(PCA_result)
-print(PCA_result)
-# ===============================================================================
+# bpca = BatchPCA(train_subset, test_subset)
+# bpca.fit_all(n_components=20)
+# PCA_test_errors = bpca.get_PCA_predictions(mode="test",threshold_percentile=50)
+# PCA_result = evaluation.compare_methods_results(predictions_dict=PCA_test_errors)
+# evaluation.plot_hits_vs_misses(PCA_result)
+# print(PCA_result)
+# ===================================== GMM ======================================
+
+gmm = GMM(train_subset,test_subset)
+gmm.fit_all(n_components=10,covariance_type='full',n_init=25, max_iter=10000, tol=1e-2)
+GMM_errors_pred = gmm.get_batch_predictions(threshold_percentile=5)
+GMM_results = evaluation.compare_methods_results(predictions_dict=GMM_errors_pred)
+evaluation.plot_hits_vs_misses(GMM_results)
+print(GMM_results)
+
+# ==================================================================================
 
 # # 5. Podíváš se na výsledky
 # bpca.plot_summary(test_errors)
