@@ -3,6 +3,7 @@ from PCA_method import BatchPCA
 import os
 from Evaluation import EvaluateResults
 from GausianMixtureModel import GMM
+from LocalOutlierFactor import LOF
 
 train_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\test"
 test_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\train"
@@ -35,17 +36,21 @@ evaluation.load_solution(results)
 # print(PCA_result)
 # ===================================== GMM ======================================
 
-gmm = GMM(train_subset,test_subset)
-gmm.fit_all(n_components=10,covariance_type='full',n_init=25, max_iter=10000, tol=1e-2)
-GMM_errors_pred = gmm.get_batch_predictions(threshold_percentile=5)
-GMM_results = evaluation.compare_methods_results(predictions_dict=GMM_errors_pred)
-evaluation.plot_hits_vs_misses(GMM_results)
-print(GMM_results)
+# gmm = GMM(train_subset,test_subset)
+# gmm.fit_all(n_components=10,covariance_type='full',n_init=25, max_iter=10000, tol=1e-2)
+# GMM_errors_pred = gmm.get_batch_predictions(threshold_percentile=5)
+# GMM_results = evaluation.compare_methods_results(predictions_dict=GMM_errors_pred)
+# evaluation.plot_hits_vs_misses(GMM_results)
+# print(GMM_results)
 
-# ==================================================================================
+# ====================================== LOF ========================================
 
-# # 5. Podíváš se na výsledky
-# bpca.plot_summary(test_errors)
-# evaluation_report_pca = bpca.evaluate_pca_anomalies(test_errors, results, threshold_percentile=98)
-# print(evaluation_report_pca)
+lof = LOF(train_subset,test_subset)
+lof.fit_all(n_neighbors=20, algorithm='auto', leaf_size=30, metric='minkowski', p=2, contamination='auto')
+LOF_error_prediction = lof.get_batch_predictions(threshold_percentile=10)
+LOF_results = evaluation.compare_methods_results(predictions_dict=LOF_error_prediction)
+evaluation.plot_hits_vs_misses(LOF_results)
+print(LOF_results)
+
+
 
