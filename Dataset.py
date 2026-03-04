@@ -160,7 +160,7 @@ class DatasetOperations:
 
 
 
-    def plot_data(self, choosen_dataset="training_dataset", start_channel_id="A-3"):
+    def plot_data(self, choosen_dataset="testing_dataset", start_channel_id="P-1"):
         """
         Interactive plot that allows browsing through channels using 'n' and 'b' keys.
         """
@@ -417,3 +417,30 @@ class DatasetOperations:
 
         # VRACÍME DVA OBJEKTY
         return train_subset, test_subset
+
+
+    def remove_constant_columns(self, data_dict):
+        """
+        remove constant columns
+        """
+        print("--- Removing constant columns ---")
+        new_dict = {}
+        
+        for cid, data in data_dict.items():
+            # Převedeme na DataFrame pro snazší manipulaci, pokud je to numpy
+            df = pd.DataFrame(data)
+            
+            # Najdeme sloupce, kde se minimum nerovná maximu (tedy se mění)
+            non_constant_cols = df.columns[df.nunique() > 1]
+            
+            # Ponecháme jen ty, co se hýbou
+            filtered_df = df[non_constant_cols]
+            
+            # Uložíme zpět jako numpy
+            new_dict[cid] = filtered_df.values
+            
+            removed_count = df.shape[1] - filtered_df.shape[1]
+            if removed_count > 0:
+                print(f" Channel {cid:6}: Removed {removed_count} constant columns.")
+                
+        return new_dict
