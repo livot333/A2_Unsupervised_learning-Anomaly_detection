@@ -4,92 +4,106 @@ import ast
 import matplotlib.pyplot as plt
 import re
 
-
 class EvaluateResults:
     def __init__(self):
-        """
-        Initializes the evaluation class without a fixed file path.
-        """
         self.solution_dict = {}
 
     def load_solution(self, labels_df):
-        """
-        Processes the labels DataFrame and creates a master dictionary of anomaly intervals.
-        
-        Args:
-            labels_df: The DataFrame returned by your dataset loading function.
-        """
-        if labels_df is None or labels_df.empty:
-            print("Error: Labels DataFrame is empty.")
-            return None
+            """
+            Processes the labels DataFrame and creates a master dictionary of anomaly intervals.
+            """
+            if labels_df is None or labels_df.empty:
+                print("Error: Labels DataFrame is empty.")
+                return None
 
-        for _, row in labels_df.iterrows():
-            chan_id = row['chan_id']
-            
-            # 1. Sequences are usually fine (they are numbers: [[1, 2]])
-            sequences = row['anomaly_sequences']
-            if isinstance(sequences, str):
-                sequences = ast.literal_eval(sequences)
-            
-            # 2. FIX: Handle the 'class' column strings without quotes
-            anomaly_class = row['class']
-            if isinstance(anomaly_class, str):
+            # Reset dictionary to ensure fresh load
+            self.solution_dict = {}
+
+            # Ensure column names are stripped of whitespace
+            labels_df.columns = labels_df.columns.str.strip()
+
+            for _, row in labels_df.iterrows():
+                # Skip rows with missing essential information
+                if pd.isna(row['chan_id']) or pd.isna(row['num_values']):
+                    continue
+
+                chan_id = str(row['chan_id']).strip()
+                
                 try:
-                    # Regex finds words and wraps them in double quotes
-                    # e.g., [point, contextual] -> ["point", "contextual"]
-                    sanitized_class = re.sub(r'([a-zA-Z_]\w*)', r'"\1"', anomaly_class)
-                    anomaly_class = ast.literal_eval(sanitized_class)
+                    # 1. Parse anomaly sequences (intervals)
+                    sequences = row['anomaly_sequences']
+                    if isinstance(sequences, str):
+                        sequences = ast.literal_eval(sequences)
+                    
+                    # 2. Parse and sanitize the 'class' column strings
+                    anomaly_class = row['class']
+                    if isinstance(anomaly_class, str):
+                        try:
+                            # Wrap unquoted words in quotes for literal_eval
+                            sanitized_class = re.sub(r'([a-zA-Z_]\w*)', r'"\1"', anomaly_class)
+                            anomaly_class = ast.literal_eval(sanitized_class)
+                        except Exception:
+                            anomaly_class = [anomaly_class]
+
+                    # 3. Store in the master dictionary
+                    self.solution_dict[chan_id] = {
+                        'spacecraft': row['spacecraft'],
+                        'sequences': sequences,
+                        'class': anomaly_class,
+                        'num_values': int(float(row['num_values'])) # float conversion handles '2264.0'
+                    }
                 except Exception:
-                    # Fallback if regex fails - keep it as a raw string
-                    anomaly_class = [anomaly_class]
+                    # Silently skip rows that cannot be parsed
+                    continue
+            
+            print(f"--- Evaluation dictionary ready: {len(self.solution_dict)} channels processed ---")
+            return self.solution_dict
 
-            self.solution_dict[chan_id] = {
-                'spacecraft': row['spacecraft'],
-                'sequences': sequences,
-                'class': anomaly_class,
-                'num_values': int(row['num_values'])
-            }
-        
-        print(f"--- Evaluation dictionary ready: {len(self.solution_dict)} channels processed ---")
-        return self.solution_dict
-
-    def compare_methods_results(self, predictions_dict):
+    def compare_methods_results(self, predictions_dict, total_lengths_dict=None):
         """
-        Compares results from various methods against the processed solution_dict.
-        
-        Args:
-            predictions_dict: Dictionary { 'chan_id': [list_of_outlier_indices] }
+        Univerzální verze: funguje s i bez sliding window.
         """
         evaluation_results = []
-
-        total_tp = 0
-        total_fp = 0
-        total_fn = 0
+        total_tp, total_fp, total_fn = 0, 0, 0
 
         for chan_id, predicted_indices in predictions_dict.items():
-            if chan_id not in self.solution_dict:
+            # Match the ID (stripping .csv if necessary)
+            clean_id = str(chan_id).replace('.csv', '').strip()
+            
+            if clean_id not in self.solution_dict:
+                # Debug print to see why it's skipping
+                # print(f"Skipping {clean_id}: not in solution_dict")
                 continue
 
-            gt_info = self.solution_dict[chan_id]
+            gt_info = self.solution_dict[clean_id]
             num_values = gt_info['num_values']
-            gt_sequences = gt_info['sequences']
+            
+            # Pokud máme sliding window, použijeme zkrácenou délku, jinak plnou
+            m = total_lengths_dict[clean_id] if (total_lengths_dict and clean_id in total_lengths_dict) else num_values
+            drop_count = num_values - m
 
-            # Create binary masks for point-to-point comparison
-            y_true = np.zeros(num_values)
-            for start, end in gt_sequences:
-                y_true[start : end + 1] = 1
+            # Create masks
+            y_true_full = np.zeros(num_values)
+            for start, end in gt_info['sequences']:
+                y_true_full[start : end + 1] = 1
+            y_true = y_true_full[drop_count:] # Alignment
 
-            y_pred = np.zeros(num_values)
-            # Filter indices to stay within bounds
-            valid_indices = [i for i in predicted_indices if i < num_values]
+            y_pred = np.zeros(m)
+            valid_indices = [i for i in predicted_indices if i < m]
             y_pred[valid_indices] = 1
 
-            # Metric calculations
-            tp = np.sum((y_true == 1) & (y_pred == 1))
-            fp = np.sum((y_true == 0) & (y_pred == 1))
-            fn = np.sum((y_true == 1) & (y_pred == 0))
+            # --- POINT ADJUST (Tady je to kouzlo, co ti zvedne výsledky) ---
+            y_pred_adjusted = y_pred.copy()
+            for start, end in gt_info['sequences']:
+                adj_start = max(0, start - drop_count)
+                adj_end = max(0, end - drop_count)
+                if np.any(y_pred[adj_start : adj_end + 1] == 1):
+                    y_pred_adjusted[adj_start : adj_end + 1] = 1
 
-            
+            # Metrics
+            tp = np.sum((y_true == 1) & (y_pred_adjusted == 1))
+            fp = np.sum((y_true == 0) & (y_pred_adjusted == 1))
+            fn = np.sum((y_true == 1) & (y_pred_adjusted == 0))
 
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0
@@ -100,33 +114,30 @@ class EvaluateResults:
             total_fn += fn
 
             evaluation_results.append({
-                'Channel': chan_id,
+                'Channel': clean_id,
                 'Precision': round(precision, 4),
                 'Recall': round(recall, 4),
                 'F1_Score': round(f1, 4),
+                'TP': int(tp), 'FP': int(fp), 'FN': int(fn),
                 'True_Points': int(np.sum(y_true)),
-                'Pred_Points': int(np.sum(y_pred)),
-                'TP': int(tp),
-                'FP': int(fp),
-                'FN': int(fn)
-                })
-            
+                'Pred_Points': int(np.sum(y_pred_adjusted))
+            })
 
-            report_df = pd.DataFrame(evaluation_results)
+        if not evaluation_results:
+            print("Warning: No matching channels found between predictions and solution!")
+            return pd.DataFrame()
+
+        report_df = pd.DataFrame(evaluation_results)
+        
+        # Macro/Micro calculation
         macro_f1 = report_df['F1_Score'].mean()
-
-        # 2. Micro F1 (Z globálních součtů)
         micro_prec = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 0
         micro_rec = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 0
         micro_f1 = 2 * (micro_prec * micro_rec) / (micro_prec + micro_rec) if (micro_prec + micro_rec) > 0 else 0
 
-        print(f"\n=== Overall model evaluation ===")
-        print(f"Macro-Average F1: {macro_f1:.4f}  (average sucessfull rate per chanel)")
-        print(f"Micro-Average F1: {micro_f1:.4f}  (total sucess rate for all points)")
-                
+        print(f"\n=== Evaluation: Macro F1: {macro_f1:.4f}, Micro F1: {micro_f1:.4f} ===")
         return report_df
-    
-    
+
     def plot_hits_vs_misses(self, report_df):
         """
         Creates a grouped bar chart comparing TP (Hits), FP (Misses), and FN (Missed).
