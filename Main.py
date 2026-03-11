@@ -54,12 +54,12 @@ print(GMM_results)
 
 # ====================================== LOF ========================================
 
-lof = LOF(train_s,test_s)
-lof.fit_all(n_neighbors=20, algorithm='auto', leaf_size=30, metric='minkowski', p=2, contamination='auto')
-LOF_error_prediction = lof.get_batch_predictions(threshold_percentile=10)
-LOF_results = evaluation.compare_methods_results(predictions_dict=LOF_error_prediction)
-evaluation.plot_hits_vs_misses(LOF_results)
-print(LOF_results)
+# lof = LOF(train_s,test_s)
+# lof.fit_all(n_neighbors=20, algorithm='auto', leaf_size=30, metric='minkowski', p=2, contamination='auto')
+# LOF_error_prediction = lof.get_batch_predictions(threshold_percentile=10)
+# LOF_results = evaluation.compare_methods_results(predictions_dict=LOF_error_prediction)
+# evaluation.plot_hits_vs_misses(LOF_results)
+# print(LOF_results)
 
 
 
