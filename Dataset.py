@@ -6,6 +6,7 @@ import os
 import seaborn as sns
 import networkx as nx
 import random
+import io
 
 
 class DatasetOperations:
@@ -93,16 +94,25 @@ class DatasetOperations:
         except Exception as e:
             print(f"Error loading test data: {e}")
 
-        # 3. Load Labels CSV
+            # 3. Load Labels CSV
+            # V metodě load_data uprav část pro načítání CSV:
         try:
-            if os.path.exists(self.results_file_path):
-                self.labels_df = pd.read_csv(self.results_file_path)
-                if self.labels_df.empty:
-                    print("Warning: Labels CSV is empty.")
-                else:
-                    print("Successfully loaded labels CSV.")
-            else:
-                print(f"Warning: Labels file not found at {self.results_file_path}")
+            with open(self.results_file_path, 'r') as f:
+                lines = f.readlines()
+
+            header = lines[0].strip()
+            fixed_lines = [header]
+
+            for line in lines[1:]:
+                line = line.strip()
+                # Remove the outer quotes wrapping the entire row
+                if line.startswith('"') and line.endswith('"'):
+                    line = line[1:-1]
+                # Unescape doubled inner quotes → single quotes
+                line = line.replace('""', '"')
+                fixed_lines.append(line)
+
+            self.labels_df = pd.read_csv(io.StringIO('\n'.join(fixed_lines)))
         except Exception as e:
             print(f"Error loading results CSV: {e}")
     
