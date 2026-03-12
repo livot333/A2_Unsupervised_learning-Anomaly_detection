@@ -6,6 +6,7 @@ from GausianMixtureModel import GMM
 from LocalOutlierFactor import LOF
 from TimeContext import TimeContextModif
 import numpy as np
+from Stompy import MstumpDetector
 
 train_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\test"
 test_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\train"
@@ -31,28 +32,28 @@ evaluation.load_solution(results)
 
 #================================= TIme context =================================
 tx = TimeContextModif(test_dataset=test_subset,train_dataset=train_subset)
-# train_s, test_s = tx.apply_sliding_window(window_length=1000, flatten=True)
+train_s, test_s = tx.apply_sliding_window(window_length=100, flatten=True)
 # train_s, test_s = tx.add_lag_features(lags=np.arange(1, 10, 1))
 # train_s, test_s = tx.add_rolling_statistics(window_length=500)
 # train_s, test_s = tx.add_spectral_features(window_length=500)
-train_s, test_s = tx.add_derivative_features()
+# train_s, test_s = tx.add_derivative_features()
 # ===================================== PCA ====================================
-bpca = BatchPCA(train_subset, test_subset)
-bpca.fit_all(n_components=20)
-PCA_test_errors = bpca.get_PCA_predictions(mode="test",threshold_percentile=50)
-PCA_result = evaluation.compare_methods_results(predictions_dict=PCA_test_errors)
-evaluation.plot_hits_vs_misses(PCA_result)
-print(PCA_result)
-# ===================================== GMM ======================================
+# bpca = BatchPCA(train_subset, test_subset)
+# bpca.fit_all(n_components=20)
+# PCA_test_errors = bpca.get_PCA_predictions(mode="test",threshold_percentile=50)
+# PCA_result = evaluation.compare_methods_results(predictions_dict=PCA_test_errors)
+# evaluation.plot_hits_vs_misses(PCA_result)
+# print(PCA_result)
+# # ===================================== GMM ======================================
 
-gmm = GMM(train_subset,test_subset)
-gmm.fit_all(n_components=10,covariance_type='full',n_init=50, max_iter=4500, tol=1e-2)
-GMM_errors_pred = gmm.get_batch_predictions(threshold_percentile=5)
-GMM_results = evaluation.compare_methods_results(predictions_dict=GMM_errors_pred)
-evaluation.plot_hits_vs_misses(GMM_results)
-print(GMM_results)
+# gmm = GMM(train_subset,test_subset)
+# gmm.fit_all(n_components=10,covariance_type='full',n_init=50, max_iter=4500, tol=1e-2)
+# GMM_errors_pred = gmm.get_batch_predictions(threshold_percentile=5)
+# GMM_results = evaluation.compare_methods_results(predictions_dict=GMM_errors_pred)
+# evaluation.plot_hits_vs_misses(GMM_results)
+# print(GMM_results)
 
-# ====================================== LOF ========================================
+# # ====================================== LOF ========================================
 
 # lof = LOF(train_s,test_s)
 # lof.fit_all(n_neighbors=20, algorithm='auto', leaf_size=30, metric='minkowski', p=2, contamination='auto')
@@ -62,4 +63,10 @@ print(GMM_results)
 # print(LOF_results)
 
 
+#===================================STOMPY===========================================
+stmp = MstumpDetector(window_size=200)
+stmp_error_prediction = stmp.get_batch_predictions(test_subset, threshold_percentile=99.5)
+stmp_report = evaluation.compare_methods_results(stmp_error_prediction)
+evaluation.plot_hits_vs_misses(stmp_report)
+print(stmp_report)
 
