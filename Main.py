@@ -8,6 +8,8 @@ from TimeContext import TimeContextModif
 import numpy as np
 from Stompy import MstumpDetector
 from LSTMAutoencoder import LSTM_AE_Detector
+from AutoEncoder import MultiFileSklearnTuner
+
 
 train_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\test"
 test_path = r"D:\SKOLA\NTNU\MLL\Assingment_2\Dataset_file\data\data\train"
@@ -33,7 +35,7 @@ evaluation.load_solution(results)
 
 #================================= TIme context =================================
 tx = TimeContextModif(test_dataset=test_subset,train_dataset=train_subset)
-train_s, test_s = tx.apply_sliding_window(window_length=100, flatten=True)
+train_s, test_s = tx.apply_sliding_window(window_length=200, flatten=True)
 # train_s, test_s = tx.add_lag_features(lags=np.arange(1, 10, 1))
 # train_s, test_s = tx.add_rolling_statistics(window_length=500)
 # train_s, test_s = tx.add_spectral_features(window_length=500)
@@ -47,12 +49,12 @@ train_s, test_s = tx.apply_sliding_window(window_length=100, flatten=True)
 # print(PCA_result)
 # # ===================================== GMM ======================================
 
-gmm = GMM(train_subset,test_subset)
-gmm.fit_all(n_components=10,covariance_type='full',n_init=50, max_iter=4500, tol=1e-2)
-GMM_errors_pred = gmm.get_batch_predictions(threshold_percentile=5)
-GMM_results = evaluation.compare_methods_results(predictions_dict=GMM_errors_pred)
-evaluation.plot_hits_vs_misses(GMM_results)
-print(GMM_results)
+# gmm = GMM(train_subset,test_subset)
+# gmm.fit_all(n_components=10,covariance_type='full',n_init=50, max_iter=4500, tol=1e-2)
+# GMM_errors_pred = gmm.get_batch_predictions(threshold_percentile=5)
+# GMM_results = evaluation.compare_methods_results(predictions_dict=GMM_errors_pred)
+# evaluation.plot_hits_vs_misses(GMM_results)
+# print(GMM_results)
 
 # # ====================================== LOF ========================================
 
@@ -73,15 +75,30 @@ print(GMM_results)
 
 # ================================ LSTMA ===========================================
 
-lstm_ae = LSTM_AE_Detector(seq_len=250, epochs=10, percentile=94)
+# lstm_ae = LSTM_AE_Detector(seq_len=250, epochs=10, percentile=94)
 
-# Fit (na celém slovníku)
-lstm_ae.fit(train_subset)
+# # Fit (na celém slovníku)
+# lstm_ae.fit(train_subset)
 
-# Prediction (dostaneš slovník množin)
-ae_outliers = lstm_ae.prediction(test_subset)
+# # Prediction (dostaneš slovník množin)
+# ae_outliers = lstm_ae.prediction(test_subset)
 
-# Tvůj stávající report
-report_lstma = evaluation.compare_methods_results(ae_outliers)
-evaluation.plot_hits_vs_misses(report_lstma)
-print(report_lstma)
+# # Tvůj stávající report
+# report_lstma = evaluation.compare_methods_results(ae_outliers)
+# evaluation.plot_hits_vs_misses(report_lstma)
+# print(report_lstma)
+#
+#=====================================Autoencoder=======================================
+
+moje_soubory = ['T-9', 'A-4', 'C-2'] 
+
+# 2. Inicializuj tuner (n_trials=20 je dobrý kompromis rychlost/kvalita)
+tuner = MultiFileSklearnTuner(target_cids=moje_soubory, n_trials=20)
+
+# 3. Spusť proces (vytvoří sítě, najde parametry a vrátí výsledky)
+ae_results = tuner.tune_and_predict(train_s, test_s, evaluation)
+
+# 4. Finální report pro ty soubory, které jsi vybral
+report_ae = evaluation.compare_methods_results(ae_results)
+evaluation.plot_hits_vs_misses(report_ae)
+print(report_ae)
