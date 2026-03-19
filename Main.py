@@ -76,12 +76,12 @@ test_pca_features = bpca.transform_PCA(mode="test")
 
 # # ===================================== GMM ======================================
 
-# gmm = GMM(train_pca_features,test_pca_features)
-# gmm.fit_all(n_components=3, covariance_type='diag', n_init=5, max_iter=300, tol=1e-3, init_params='kmeans', warm_start=True)
-# GMM_errors_pred = gmm.get_batch_predictions(threshold_percentile=5)
-# GMM_results = evaluation.compare_methods_results(predictions_dict=GMM_errors_pred)
-# evaluation.plot_hits_vs_misses(GMM_results)
-# print(GMM_results)
+gmm = GMM(train_pca_features,test_pca_features)
+gmm.fit_all(n_components=3, covariance_type='diag', n_init=5, max_iter=300, tol=1e-3, init_params='kmeans', warm_start=True)
+GMM_errors_pred = gmm.get_batch_predictions(threshold_percentile=5)
+GMM_results = evaluation.compare_methods_results(predictions_dict=GMM_errors_pred)
+evaluation.plot_hits_vs_misses(GMM_results)
+print(GMM_results)
 
 # # ====================================== LOF ========================================
 
