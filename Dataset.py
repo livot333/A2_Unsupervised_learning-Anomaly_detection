@@ -8,9 +8,14 @@ import networkx as nx
 import random
 import io
 
-
 class DatasetOperations:
-    def __init__(self,train_path, test_path,results_path):
+    def __init__(self, train_path, test_path, results_path):
+        """
+        Initializes the dataset operation helper.
+        :param train_path: System path to training .npy files
+        :param test_path: System path to testing .npy files
+        :param results_path: Path to the labeled anomalies CSV file
+        """
         self.train_file_path = train_path
         self.test_file_path = test_path
         self.results_file_path = results_path
@@ -19,15 +24,15 @@ class DatasetOperations:
         self.test_data_dict = {}
         self.labels_df = None
 
-    def load_data(self,treshold_4_normalization = 1.5):
-        '''
-        loads dataset into three dictionaries: 
-        1.train_data_dict
-        2.test_data_dict
+    def load_data(self, treshold_4_normalization=1.5):
+        """
+        Loads dataset into three storage structures: 
+        1. train_data_dict
+        2. test_data_dict
         3. labels_df 
-        if values are above 1.5 normalizes them
-        '''
-        # 1. Load Training Data
+        Applies Min-Max normalization if telemetry values exceed the specified threshold.
+        """
+        # --- 1. Load Training Data ---
         try:
             if not os.path.exists(self.train_file_path):
                 raise FileNotFoundError(f"Directory not found: {self.train_file_path}")
@@ -39,14 +44,15 @@ class DatasetOperations:
                     data = np.load(path)
 
                     telemetry = data[:, 0]
-                    if np.max(np.abs(telemetry)) > treshold_4_normalization: # Pokud je hodnota vyšší než 2 (rezerva pro -1, 1)
+                    # Check if telemetry exceeds threshold for scaling
+                    if np.max(np.abs(telemetry)) > treshold_4_normalization: 
                         print(f"  --> Scaling unnormalized channel: {channel_id} (Max value: {np.max(telemetry)})")
                         
-                        # Min-Max Scaling do rozsahu [-1, 1]
+                        # Apply Min-Max Scaling to range [-1, 1]
                         t_min = np.min(telemetry)
                         t_max = np.max(telemetry)
                         
-                        # Ošetření dělení nulou pro konstantní soubory
+                        # Avoid division by zero for constant signals
                         if t_max - t_min != 0:
                             data[:, 0] = ((telemetry - t_min) / (t_max - t_min)) * 2 - 1
                         else:
@@ -61,7 +67,7 @@ class DatasetOperations:
         except Exception as e:
             print(f"Error loading train data: {e}")
 
-        # 2. Load Test Data
+        # --- 2. Load Test Data ---
         try:
             if not os.path.exists(self.test_file_path):
                 raise FileNotFoundError(f"Directory not found: {self.test_file_path}")
@@ -73,14 +79,12 @@ class DatasetOperations:
                     data = np.load(path)
 
                     telemetry = data[:, 0]
-                    if np.max(np.abs(telemetry)) > treshold_4_normalization: # Pokud je hodnota vyšší než 2 (rezerva pro -1, 1)
+                    if np.max(np.abs(telemetry)) > treshold_4_normalization:
                         print(f"  --> Scaling unnormalized channel: {channel_id} (Max value: {np.max(telemetry)})")
                         
-                        # Min-Max Scaling do rozsahu [-1, 1]
                         t_min = np.min(telemetry)
                         t_max = np.max(telemetry)
                         
-                        # Ošetření dělení nulou pro konstantní soubory
                         if t_max - t_min != 0:
                             data[:, 0] = ((telemetry - t_min) / (t_max - t_min)) * 2 - 1
                         else:
@@ -94,8 +98,7 @@ class DatasetOperations:
         except Exception as e:
             print(f"Error loading test data: {e}")
 
-            # 3. Load Labels CSV
-            # V metodě load_data uprav část pro načítání CSV:
+        # --- 3. Load Labels CSV ---
         try:
             with open(self.results_file_path, 'r') as f:
                 lines = f.readlines()
@@ -105,10 +108,10 @@ class DatasetOperations:
 
             for line in lines[1:]:
                 line = line.strip()
-                # Remove the outer quotes wrapping the entire row
+                # Clean nested quotes from the NASA labels format
                 if line.startswith('"') and line.endswith('"'):
                     line = line[1:-1]
-                # Unescape doubled inner quotes → single quotes
+                # Convert escaped double quotes to single quotes
                 line = line.replace('""', '"')
                 fixed_lines.append(line)
 
@@ -116,9 +119,7 @@ class DatasetOperations:
         except Exception as e:
             print(f"Error loading results CSV: {e}")
     
-        return self.train_data_dict,self.test_data_dict,self.labels_df
-        
-
+        return self.train_data_dict, self.test_data_dict, self.labels_df
         
     def dataset_info(self):
         """Analyzes train and test dictionaries and displays summary tables."""
@@ -129,14 +130,14 @@ class DatasetOperations:
             for channel_id, data in data_dict.items():
                 rows, cols = data.shape
                 
-                # Check for missing values
+                # Identify missing data points
                 missing_values = np.isnan(data).sum()
                 
-                # Check binary values for Command Columns (Index 1 to End)
+                # Check for validity of binary Command Columns (Index 1 onwards)
                 command_cols = data[:, 1:]
                 non_binary_count = np.sum((command_cols != 0) & (command_cols != 1))
                 
-                # Calculate range for Telemetry Column (Index 0)
+                # Observe value distribution for Telemetry Column (Index 0)
                 telemetry_col = data[:, 0]
                 min_val = np.min(telemetry_col)
                 max_val = np.max(telemetry_col)
@@ -148,33 +149,31 @@ class DatasetOperations:
                     'Missing_NaN': missing_values,
                     'Non_Binary_Cmds': non_binary_count
                 })
-                info_df = pd.DataFrame(summary_list)
+            
+            info_df = pd.DataFrame(summary_list)
             print(f"\n--- {name.upper()} DATASET SUMMARY ---")
             if not info_df.empty:
-                # Using to_string for better visibility of all columns
                 print(info_df.to_string(index=False))
             else:
                 print("No data loaded.")
             return info_df
 
-        # Run analysis for both dictionaries
+        # Perform analysis for both data subsets
         analyze_dict(self.train_data_dict, "Training")
         analyze_dict(self.test_data_dict, "Testing")
 
-        # Display Labels CSV preview
+        # Preview of the labeled anomalies
         print("\n--- LABELS CSV PREVIEW (First 5 rows) ---")
         if self.labels_df is not None:
             print(self.labels_df.head())
         else:
             print("Labels CSV not loaded.")
 
-
-
     def plot_data(self, choosen_dataset="testing_dataset", start_channel_id="P-1"):
         """
-        Interactive plot that allows browsing through channels using 'n' and 'b' keys.
+        Interactive plot that allows browsing through channels using 'n' (Next) and 'b' (Back) keys.
         """
-        # 1. Select the correct dictionary
+        # Select target dataset
         if choosen_dataset == "training_dataset":
             current_dict = self.train_data_dict
         else:
@@ -184,7 +183,7 @@ class DatasetOperations:
             print(f"Error: {choosen_dataset} dictionary is empty. Load data first.")
             return
 
-        # 2. Prepare the list of keys and current index
+        # Map keys for navigation
         channel_keys = sorted(list(current_dict.keys()))
         try:
             self.current_idx = channel_keys.index(start_channel_id)
@@ -192,7 +191,6 @@ class DatasetOperations:
             self.current_idx = 0
             print(f"Warning: {start_channel_id} not found. Starting from index 0.")
 
-        # 3. Setup the figure
         fig, ax = plt.subplots(figsize=(12, 6))
         plt.subplots_adjust(bottom=0.15)
 
@@ -201,7 +199,7 @@ class DatasetOperations:
             channel_id = channel_keys[self.current_idx]
             data = current_dict[channel_id]
             
-            # Plot only the first column (Telemetry / Timeline)
+            # Focus on the first column representing Telemetry
             ax.plot(data[:, 0], color='blue', linewidth=1, label='Telemetry')
             
             ax.set_title(f"Mode: {choosen_dataset.upper()} | Channel: {channel_id} ({self.current_idx + 1}/{len(channel_keys)})")
@@ -213,8 +211,8 @@ class DatasetOperations:
             print(f"Displaying: {channel_id}")
             fig.canvas.draw()
 
-        # 4. Key event handler
         def on_press(event):
+            # Handler for keyboard shortcuts
             if event.key == 'n':
                 self.current_idx = (self.current_idx + 1) % len(channel_keys)
                 update_plot()
@@ -224,7 +222,6 @@ class DatasetOperations:
             elif event.key == 'escape':
                 plt.close(fig)
 
-        # 5. Connect event and show instructions
         fig.canvas.mpl_connect('key_press_event', on_press)
         print("\n--- Interactive Plotter Started ---")
         print("Controls: [n] Next channel | [b] Previous channel | [ESC] Close")
@@ -232,19 +229,18 @@ class DatasetOperations:
         update_plot()
         plt.show()
 
-
-
-    def correlation_check(self, mode,correlation_csv_report = False, correlation_outfile_path = None, corr_calc_method="spearman"):
+    def correlation_check(self, mode, correlation_csv_report=False, correlation_outfile_path=None, corr_calc_method="spearman"):
         """
         Performs correlation analysis and exports a structured 7-column CSV report.
-        Format: Channel_ID | Internal_Type | Internal_Name | Internal_Value | External_Type | External_Name | External_Value
+        Includes Inter-Channel heatmaps and specific Internal Feature correlations.
         """
         data_dict = self.train_data_dict if mode == "train" else self.test_data_dict
         if not data_dict:
             print("No data loaded to analyze.")
             return
 
-        # 1. Inter-Channel Heatmap Visualization
+        # --- 1. Inter-Channel Heatmap Visualization ---
+        # Align lengths by trimming to the shortest sequence
         min_len = min(d.shape[0] for d in data_dict.values())
         inter_df = pd.DataFrame({cid: data_dict[cid][:min_len, 0] for cid in data_dict.keys()})
         inter_corr_matrix = inter_df.corr(method=corr_calc_method)
@@ -255,33 +251,32 @@ class DatasetOperations:
         plt.show()
         self.inter_corr_matrix = inter_corr_matrix
 
-
-        if correlation_csv_report == True:
-            # 2. Building the Side-by-Side CSV report
+        if correlation_csv_report:
+            # --- 2. Build Side-by-Side CSV report ---
             all_rows = []
 
             for channel_id, data in data_dict.items():
-                # A. Internal: Telemetry vs Commands
+                # A. Internal correlation: Telemetry vs Binary Command signals
                 num_cols = data.shape[1]
                 df_intra = pd.DataFrame(data, columns=['Telemetry'] + [f'Cmd_{i}' for i in range(1, num_cols)])
-                intra_corr = df_intra.corr(method=corr_calc_method)['Telemetry'].drop('Telemetry')
-                top_10_intra = intra_corr.abs().sort_values(ascending=False).head(5)
-
+                
+                # Exclude constant columns to prevent NaNs in correlation
                 df_intra = df_intra.loc[:, (df_intra != df_intra.iloc[0]).any()]
+                intra_corr = df_intra.corr(method=corr_calc_method)['Telemetry'].drop('Telemetry', errors='ignore')
+                top_5_intra = intra_corr.abs().sort_values(ascending=False).head(5)
 
-
-                # B. External: This Channel vs All Others
+                # B. External correlation: Comparing this channel against all other telemetry channels
                 inter_corr = inter_corr_matrix[channel_id].drop(channel_id)
-                top_10_inter = inter_corr.abs().sort_values(ascending=False).head(5)
+                top_5_inter = inter_corr.abs().sort_values(ascending=False).head(5)
 
-                # C. Merge both Top 10 lists into rows
-                intra_list = list(top_10_intra.items())
-                inter_list = list(top_10_inter.items())
+                # C. Mapping Top values to the report rows
+                intra_list = list(top_5_intra.items())
+                inter_list = list(top_5_inter.items())
 
                 for i in range(5):
                     row = {'Channel_ID': channel_id if i == 0 else ''}
                     
-                    # Internal Feature Columns
+                    # Log Internal Feature Correlations
                     if i < len(intra_list):
                         feat_name, _ = intra_list[i]
                         row['Intra_Type'] = 'INTERNAL'
@@ -290,7 +285,7 @@ class DatasetOperations:
                     else:
                         row['Intra_Type'], row['Intra_Feature'], row['Intra_Corr'] = '', '', ''
 
-                    # External Channel Columns
+                    # Log External Channel Correlations
                     if i < len(inter_list):
                         other_ch, _ = inter_list[i]
                         row['Inter_Type'] = 'EXTERNAL'
@@ -301,10 +296,10 @@ class DatasetOperations:
 
                     all_rows.append(row)
 
-                # D. Add an empty row between channels for better visibility in Excel
+                # Add separator row for CSV readability
                 all_rows.append({k: '' for k in row.keys()})
 
-            # 3. Exporting to CSV
+            # --- 3. Export to File ---
             report_df = pd.DataFrame(all_rows)
             full_path = os.path.join(correlation_outfile_path, 'correlation_report.csv')
                     
@@ -319,16 +314,16 @@ class DatasetOperations:
             
             return report_df
 
-
-    def sort_by_corr(self, sorting_threshold, remove_files = False, remove_threshold=None):
+    def sort_by_corr(self, sorting_threshold, remove_files=False, remove_threshold=None):
         """
-        Uses an existing correlation matrix to group channels into clusters.
+        Clusters channels into groups based on their correlation matrix.
+        Can optionally remove highly redundant files to optimize memory.
         """
         if self.inter_corr_matrix is None:
             print("Error: No correlation matrix provided for clustering.")
             return []
 
-       
+        # Construct adjacency graph where edges exist if correlation exceeds threshold
         G = nx.Graph()
         channels = self.inter_corr_matrix.columns
         G.add_nodes_from(channels)
@@ -338,73 +333,68 @@ class DatasetOperations:
                 if abs(self.inter_corr_matrix.iloc[i, j]) >= sorting_threshold:
                     G.add_edge(channels[i], channels[j])
 
-        # Získáme surové shluky
+        # Extract raw clusters as connected components
         raw_clusters = [list(c) for c in nx.connected_components(G)]
         raw_clusters.sort(key=len, reverse=True)
 
         final_clusters = []
         removed_count = 0
 
-        # 2. Filtrace shluků (pokud je remove_files zapnuto)
         print(f"\n{'='*60}")
         print(f"CLUSTERING & CLEANING REPORT (Sort: {sorting_threshold} | Remove: {remove_threshold})")
         print(f"{'='*60}")
 
         for cluster in raw_clusters:
             if not remove_files:
-                # Pokud nečistíme, necháme shluk tak, jak je
                 final_clusters.append(cluster)
                 continue
             
-            # Čistící logika:
+            # Cleaning Logic: Keep the cluster "Leader" and remove redundant members
             leader = cluster[0]
-            new_cluster = [leader] # Vůdce vždy zůstává
+            new_cluster = [leader] 
             
             for member in cluster[1:]:
-                # Kontrolujeme korelaci člena vůči vůdci skupiny
                 correlation_with_leader = abs(self.inter_corr_matrix.loc[leader, member])
                 
                 if correlation_with_leader >= remove_threshold:
-                    # Soubor je redundantní -> smažeme ho z datasetů
+                    # File is redundant -> purge from memory
                     if member in self.train_data_dict: del self.train_data_dict[member]
                     if member in self.test_data_dict: del self.test_data_dict[member]
                     removed_count += 1
                 else:
-                    # Soubor není dostatečně podobný vůdci -> necháme ho ve shluku
+                    # Member differs enough from leader -> keep in group
                     new_cluster.append(member)
             
             final_clusters.append(new_cluster)
 
-        # 3. Výpis výsledků
         if remove_files:
             print(f"ACTION: Removed {removed_count} redundant files from memory.")
             print(f"RESULT: {len(self.train_data_dict)} channels remaining in dictionaries.")
         
-        # Výpis složení (jen pro shluky, kde něco zbylo)
+        # Log group composition
         for idx, c in enumerate([cl for cl in final_clusters if len(cl) > 1], 1):
             print(f" Group {idx:02d}: {', '.join(c)}")
 
         print(f"{'='*60}\n")
         
         return final_clusters
-    
 
     def select_subset(self, random_selection=True, manual_file_names=None, subset_size=10, seed=42):
         """
-        Vybere podmnožinu dat a vrátí dva slovníky: (train_subset, test_subset).
+        Slices the dataset to a specific subset.
+        Returns: (train_subset, test_subset)
         """
-        # Získáme všechny dostupné ID kanálů z trénovacích dat
         all_channels = list(self.train_data_dict.keys())
         
         if random_selection:
-            # Fixní náhoda díky seedu
+            # Deterministic randomness using a seed
             random.seed(seed)
             actual_size = min(subset_size, len(all_channels))
             selected_keys = random.sample(all_channels, actual_size)
             print(f"Randomly selected {len(selected_keys)} files (seed={seed}).")
         
         elif manual_file_names:
-            # Ruční výběr podle seznamu
+            # User defined list of IDs
             selected_keys = [f for f in manual_file_names if f in all_channels]
             missing = set(manual_file_names) - set(selected_keys)
             if missing:
@@ -412,45 +402,54 @@ class DatasetOperations:
             print(f"Manually selected {len(selected_keys)} files.")
         
         else:
-            # Fallback: vezme prostě prvních N
+            # Selection of the first N files
             selected_keys = all_channels[:subset_size]
             print(f"Fallback: selected first {len(selected_keys)} files.")
 
-        # Vytvoření nových pročištěných slovníků
+        # Reconstruct internal dictionaries based on selection
         train_subset = {k: self.train_data_dict[k] for k in selected_keys if k in self.train_data_dict}
         test_subset = {k: self.test_data_dict[k] for k in selected_keys if k in self.test_data_dict}
 
-        # Aktualizace vnitřního stavu třídy (aby i ostatní metody pracovaly s tímto výběrem)
+        # Sync the internal state of the class
         self.train_data_dict = train_subset
         self.test_data_dict = test_subset
         print(f"Selected files: {list(train_subset.keys())}")
 
-        # VRACÍME DVA OBJEKTY
         return train_subset, test_subset
 
-
-    def remove_constant_columns(self, data_dict):
+    def remove_constant_columns(self, train_dict, test_dict):
         """
-        remove constant columns
+        Removes columns that are constant in both Training AND Testing datasets.
+        Ensures both resulting datasets have an identical feature structure (dimensionality).
         """
-        print("--- Removing constant columns ---")
-        new_dict = {}
+        print("--- Synchronized removal of constant columns ---")
+        new_train_dict = {}
+        new_test_dict = {}
         
-        for cid, data in data_dict.items():
-            # Převedeme na DataFrame pro snazší manipulaci, pokud je to numpy
-            df = pd.DataFrame(data)
+        # Intersect IDs to ensure alignment
+        common_cids = set(train_dict.keys()).intersection(set(test_dict.keys()))
+        
+        for cid in common_cids:
+            train_df = pd.DataFrame(train_dict[cid])
+            test_df = pd.DataFrame(test_dict[cid])
             
-            # Najdeme sloupce, kde se minimum nerovná maximu (tedy se mění)
-            non_constant_cols = df.columns[df.nunique() > 1]
+            # Identify columns with variance in Training
+            train_moving = train_df.nunique() > 1
             
-            # Ponecháme jen ty, co se hýbou
-            filtered_df = df[non_constant_cols]
+            # Identify columns with variance in Testing
+            test_moving = test_df.nunique() > 1
             
-            # Uložíme zpět jako numpy
-            new_dict[cid] = filtered_df.values
+            # MERGED MASK: Keep column if it moves in either Train OR Test
+            # (Purge only if it is dead/constant in both sets)
+            keep_cols_mask = train_moving | test_moving
             
-            removed_count = df.shape[1] - filtered_df.shape[1]
+            cols_to_keep = train_df.columns[keep_cols_mask]
+            
+            new_train_dict[cid] = train_df[cols_to_keep].values
+            new_test_dict[cid] = test_df[cols_to_keep].values
+            
+            removed_count = train_df.shape[1] - len(cols_to_keep)
             if removed_count > 0:
-                print(f" Channel {cid:6}: Removed {removed_count} constant columns.")
+                print(f" Channel {cid:6}: Removed {removed_count} columns ")
                 
-        return new_dict
+        return new_train_dict, new_test_dict

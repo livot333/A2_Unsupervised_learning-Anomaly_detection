@@ -11,7 +11,7 @@ class GMM:
         self.scalers = {}
         self.feature_masks = {} # Store indices of non-constant columns
 
-    def fit_all(self, n_components=1,covariance_type='full',n_init=5, max_iter=100, tol=1e-3):
+    def fit_all(self, n_components=1,covariance_type='full',n_init=5, max_iter=100, tol=1e-3, init_params='kmeans', warm_start=True, reg_covar=1e-3):
         """
         Fits a separate GMM for each channel. 
         n_components=1 is often best for anomaly detection (modeling the 'normal' cluster).
@@ -38,7 +38,10 @@ class GMM:
                 max_iter=max_iter,       # Added: limits computation time
                 tol=tol,                 # Added: defines when model is "finished"
                 covariance_type=covariance_type, 
-                random_state=42
+                random_state=42,
+                warm_start=warm_start,
+                init_params=init_params,
+                reg_covar=reg_covar
             )
 
             

@@ -80,3 +80,15 @@ class BatchPCA:
                 
         return predictions_dict
 
+    def transform_PCA(self, mode="test"):
+        """returns data previouslz transformed from PCA (n_components)."""
+        data_source = self.test_dict if mode == "test" else self.train_dict
+        transformed_dict = {}
+
+        for cid, pca in self.models.items():
+            if cid in data_source:
+                scaled_data = self.scalers[cid].transform(data_source[cid])
+                # Tady je to kouzlo: bereme jen ty hlavní komponenty
+                transformed_dict[cid] = pca.transform(scaled_data)
+        
+        return transformed_dict
