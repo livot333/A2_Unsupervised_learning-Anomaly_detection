@@ -4,7 +4,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 
-# Definice vnitřní architektury sítě
+# Definition of the internal network architecture
 class LSTM_AE_Arch(nn.Module):
     def __init__(self, seq_len, hidden_dim, n_features=1):
         super(LSTM_AE_Arch, self).__init__()
@@ -14,9 +14,19 @@ class LSTM_AE_Arch(nn.Module):
         self.output_layer = nn.Linear(hidden_dim, n_features)
 
     def forward(self, x):
+        """
+        Forward pass: Encoder compresses input, Decoder attempts reconstruction.
+        """
+        # Encode: Extract the last hidden state as the context vector
         _, (hidden, _) = self.encoder(x)
+        
+        # Repeat the context vector to match the sequence length
         context = hidden.repeat(self.seq_len, 1, 1).permute(1, 0, 2)
+        
+        # Decode: Reconstruct the sequence from the context
         x_decoded, _ = self.decoder(context)
+        
+        # Map back to original feature dimension (1)
         return self.output_layer(x_decoded)
 
 class LSTM_AE_Detector:
@@ -41,13 +51,16 @@ class LSTM_AE_Detector:
         return np.lib.stride_tricks.as_strided(source, shape=shape, strides=strides)
 
     def fit(self, train_data_dict):
-        """Trénink na prvním sloupci všech 10 souborů."""
+        """
+        Trains the model on the first column of all provided channel files.
+        """
         all_sequences = []
         for data in train_data_dict.values():
             seqs = self._create_sequences(data)
             if seqs.size > 0:
                 all_sequences.append(seqs)
         
+        # Stack all sequences into a single training tensor
         X_train = np.vstack(all_sequences)
         X_tensor = torch.tensor(X_train, dtype=torch.float32).to(self.device)
         loader = DataLoader(TensorDataset(X_tensor), batch_size=64, shuffle=True)
@@ -66,7 +79,9 @@ class LSTM_AE_Detector:
         
 
     def prediction(self, test_data_dict):
-        """Vrací slovník množin outlierů pro každý kanál."""
+        """
+        Calculates reconstruction error and returns a dictionary of outlier indices for each channel.
+        """
         self.model.eval()
         outliers_dict = {}
 
@@ -79,19 +94,22 @@ class LSTM_AE_Detector:
             X_tensor = torch.tensor(X_test, dtype=torch.float32).to(self.device)
             
             with torch.no_grad():
+                # Reconstruct the sequence
                 reconstructed = self.model(X_tensor)
-                # Výpočet MSE pro každé okno
+                
+                # Calculate Mean Squared Error (MSE) per window
+                
                 mse = torch.mean((X_tensor - reconstructed)**2, dim=(1, 2)).cpu().numpy()
             
-            # Mapování skóre na původní délku dat (padding nulami na začátek)
+            # Map window scores back to original data length (pad beginning with zeros)
             full_scores = np.zeros(len(data))
             full_scores[self.seq_len - 1:] = mse
             
-            # Dynamický threshold pro daný soubor (nebo globální, pokud bys chtěl)
+            # Establish a dynamic threshold based on the specified percentile
             threshold = np.percentile(full_scores, self.percentile)
             predicted_indices = np.where(full_scores > threshold)[0]
             
-            # Převod na set (množinu) podle tvého zadání
+            # Store predicted anomaly indices as a set
             outliers_dict[cid] = set(predicted_indices)
            
 

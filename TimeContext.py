@@ -79,19 +79,16 @@ class TimeContextModif:
             for cid, data in datasets.items():
                 df = pd.DataFrame(data)
                 
-                # min_periods=1 zajistí, že dostaneme výsledek i pro začátek souboru
-                # (okno se postupně "naplňuje")
+     
                 roll = df.rolling(window=window_length, min_periods=1)
                 
                 r_mean = roll.mean()
-                r_std = roll.std().fillna(0) # Std u jednoho vzorku je NaN, nahradíme 0
+                r_std = roll.std().fillna(0) 
                 r_min = roll.min()
                 r_max = roll.max()
                 
                 combined = pd.concat([df, r_mean, r_std, r_min, r_max], axis=1)
-                
-                # Místo uříznutí natvrdo teď vezmeme všechna data. 
-                # Tím pádem délka test_win bude stejná jako u test_data_dict.
+              
                 target_dict[cid] = combined.values
                 
         return new_train, new_test
