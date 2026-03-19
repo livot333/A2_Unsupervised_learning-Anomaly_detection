@@ -54,7 +54,6 @@ class IsolationForestModel:
             self.models[cid] = iso
             self.scalers[cid] = scaler
 
-            print(f"  Channel {cid:6}: Isolation Forest fitted on {len(non_constant)} features.")
 
     def get_batch_predictions(self, threshold_percentile=None):
         """

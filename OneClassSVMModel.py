@@ -50,8 +50,6 @@ class OneClassSVMModel:
             self.models[cid] = svm
             self.scalers[cid] = scaler
 
-            print(f"  Channel {cid:6}: One-Class SVM fitted on {len(non_constant)} features.")
-
     def get_batch_predictions(self, threshold_percentile=None):
         """
         Score test data and return anomaly indices.
