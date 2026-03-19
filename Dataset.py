@@ -229,6 +229,35 @@ class DatasetOperations:
         update_plot()
         plt.show()
 
+
+    def plot_data_signal(self, choosen_dataset="testing_dataset", channel_id="P-1"):
+        """
+        Plot the telemetry signal for a single channel.
+        """
+        if choosen_dataset == "training_dataset":
+            current_dict = self.train_data_dict
+        else:
+            current_dict = self.test_data_dict
+
+        if not current_dict:
+            print(f"Error: {choosen_dataset} dictionary is empty. Load data first.")
+            return
+
+        if channel_id not in current_dict:
+            print(f"Warning: {channel_id} not found.")
+            return
+
+        data = current_dict[channel_id]
+
+        _, ax = plt.subplots(figsize=(12, 6))
+        ax.plot(data[:, 0], color='blue', linewidth=1, label='Telemetry')
+        ax.set_title(f"Mode: {choosen_dataset.upper()} | Channel: {channel_id}")
+        ax.set_xlabel("Timestep")
+        ax.set_ylabel("Normalized Value")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        plt.show()
+
     def correlation_check(self, mode, correlation_csv_report=False, correlation_outfile_path=None, corr_calc_method="spearman"):
         """
         Performs correlation analysis and exports a structured 7-column CSV report.

@@ -42,6 +42,39 @@ class DBSCANModel:
         plt.tight_layout()
         plt.show()
 
+    def k_distance_plot_all(self, k=5):
+        """Plot sorted k-NN distances for all channels in a normalised single plot."""
+        channels = sorted(self.train_dict.keys())
+        colors = plt.cm.tab20.colors
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        for i, cid in enumerate(channels):
+            data = self.train_dict[cid]
+            df = pd.DataFrame(data)
+            non_constant = df.columns[df.nunique() > 1].tolist()
+            scaler = RobustScaler()
+            scaled = scaler.fit_transform(data[:, non_constant])
+
+            nbrs = NearestNeighbors(n_neighbors=k).fit(scaled)
+            distances, _ = nbrs.kneighbors(scaled)
+            k_distances = np.sort(distances[:, -1])[::-1]
+
+            # Normalise x to 0-1 so channels with different lengths are comparable
+            x = np.linspace(0, 1, len(k_distances))
+
+            ax.plot(x, k_distances, color=colors[i % len(colors)], label=cid, linewidth=1.2)
+
+        ax.axhline(y=2.0, color='black', linestyle='--', linewidth=1.2, label='eps=2.0')
+        ax.set_ylim(0, 10)
+        ax.set_xlabel('Points sorted by distance (normalised)')
+        ax.set_ylabel(f'{k}-NN Distance (raw)')
+        ax.set_title(f'K-Distance Plot (k={k}) — All Channels (Raw Distances, y capped at 10)')
+        ax.legend(bbox_to_anchor=(1.01, 1), loc='upper left', fontsize=8)
+        ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
     def fit_all(self, eps=1.5, min_samples=10):
         """
         Fit DBSCAN per channel on training data.

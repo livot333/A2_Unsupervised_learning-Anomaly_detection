@@ -44,16 +44,49 @@ class KMeansAnalyzer:
         plt.tight_layout()
         plt.show()
 
+    def elbow_plot_all(self, k_range=range(2, 12), random_seed=42):
+        """Plot normalised inertia vs K for all channels on a single coloured plot."""
+        channels = sorted(self.train_dict.keys())
+        colors = plt.cm.tab20.colors
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        for i, cid in enumerate(channels):
+            data = self.train_dict[cid]
+            df = pd.DataFrame(data)
+            non_constant = df.columns[df.nunique() > 1].tolist()
+            scaler = RobustScaler()
+            scaled = scaler.fit_transform(data[:, non_constant])
+
+            inertia = []
+            for k in k_range:
+                km = KMeans(n_clusters=k, random_state=random_seed, n_init='auto')
+                km.fit(scaled)
+                inertia.append(km.inertia_)
+
+            # Normalise to 0-1 so channels with different scales are comparable
+            inertia = np.array(inertia, dtype=float)
+            inertia = (inertia - inertia.min()) / (inertia.max() - inertia.min() + 1e-10)
+
+            ax.plot(list(k_range), inertia, marker='o', markersize=3,
+                    color=colors[i % len(colors)], label=cid, linewidth=1.2)
+
+        ax.set_xlabel('Number of clusters K')
+        ax.set_ylabel('Normalised Inertia')
+        ax.set_title('Elbow Method — All Channels (Normalised)')
+        ax.legend(bbox_to_anchor=(1.01, 1), loc='upper left', fontsize=8, ncol=1)
+        ax.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
     def fit_all(self, k=5, random_seed=42):
         """Fit K-Means per channel for clustering analysis."""
-        print(f"--- Starting Batch K-Means Fit ({len(self.train_dict)} channels) ---")
         for cid, data in self.train_dict.items():
             df = pd.DataFrame(data)
             non_constant = df.columns[df.nunique() > 1].tolist()
             self.feature_masks[cid] = non_constant
 
             if len(non_constant) == 0:
-                print(f"  Channel {cid:6}: skipped (all features constant)")
                 continue
 
             scaler = RobustScaler()
@@ -65,7 +98,6 @@ class KMeansAnalyzer:
             self.models[cid] = km
             self.scalers[cid] = scaler
             self.best_k[cid] = k
-            print(f"  Channel {cid:6}: K-Means fitted  K={k}  |  cluster sizes: {np.bincount(km.labels_)}")
 
     def plot_clusters(self, channel_id, X_2d, title=None):
         """Visualise cluster assignments in 2D PCA space."""
@@ -101,7 +133,6 @@ class KMeansAnalyzer:
             train_out[cid] = np.hstack([self.train_dict[cid], km.transform(train_scaled)])
             test_out[cid]  = np.hstack([self.test_dict[cid],  km.transform(test_scaled)])
 
-            print(f"  Channel {cid}: {self.train_dict[cid].shape[1]} → {train_out[cid].shape[1]} features")
         return train_out, test_out
 
     def get_batch_predictions(self, threshold_percentile=95):
