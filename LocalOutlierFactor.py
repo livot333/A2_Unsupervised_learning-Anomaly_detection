@@ -54,7 +54,7 @@ class LOF:
             self.models[cid] = lof
             self.scalers[cid] = scaler
             
-            print(f" Channel {cid:6}: LOF fitted on {len(non_constant_indices)} features.")
+          
 
     def get_batch_predictions(self, threshold_percentile=5):
         """

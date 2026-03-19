@@ -42,7 +42,6 @@ class BatchPCA:
             self.scalers[cid] = scaler
             
             var_exp = np.sum(pca.explained_variance_ratio_) * 100
-            print(f" Channel {cid:6}: Explained Variance {var_exp:6.2f}%")
 
     def get_PCA_predictions(self, mode="test", threshold_percentile=98):
         """

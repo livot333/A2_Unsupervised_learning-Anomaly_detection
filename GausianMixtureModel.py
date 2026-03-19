@@ -47,7 +47,7 @@ class GMM:
             self.models[cid] = gmm
             self.scalers[cid] = scaler
             
-            print(f" Channel {cid:6}: GMM fitted on {len(non_constant_indices)} features.")
+            
 
     def get_batch_predictions(self, threshold_percentile=5):
         """

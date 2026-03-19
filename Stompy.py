@@ -60,7 +60,6 @@ class MstumpDetector:
                 predictions[cid] = outlier_indices
                 self.anomaly_scores[cid] = full_scores
                 
-                print(f"Channel {cid}: mSTUMP OK. Max score: {np.max(full_scores):.2f}")
                 
             except Exception as e:
                 print(f"Error on {cid}: {e}")

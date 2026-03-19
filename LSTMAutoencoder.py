@@ -63,7 +63,7 @@ class LSTM_AE_Detector:
                 loss = criterion(output, batch[0])
                 loss.backward()
                 optimizer.step()
-        print(f"--- LSTM-AE Training Complete (Loss: {loss.item():.6f}) ---")
+        
 
     def prediction(self, test_data_dict):
         """Vrací slovník množin outlierů pro každý kanál."""
@@ -93,6 +93,6 @@ class LSTM_AE_Detector:
             
             # Převod na set (množinu) podle tvého zadání
             outliers_dict[cid] = set(predicted_indices)
-            print(f"Channel {cid}: Predicted {len(outliers_dict[cid])} outlier points.")
+           
 
         return outliers_dict
