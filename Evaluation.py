@@ -147,7 +147,7 @@ class EvaluateResults:
         print(f"\n=== Evaluation: Macro F1: {macro_f1:.4f}, Micro F1: {micro_f1:.4f} ===")
         return report_df
 
-    def plot_hits_vs_misses(self, report_df):
+    def plot_hits_vs_misses(self, report_df, title=None):
         """
         Visualizes performance using a grouped bar chart comparing TP (Hits), FP (Misses), and FN (False Negatives).
         """
@@ -172,7 +172,7 @@ class EvaluateResults:
         # Chart Labels and Styling
         ax.set_ylabel('Data Point Count', fontsize=12, fontweight='bold')
         ax.set_xlabel('Channel ID', fontsize=12, fontweight='bold')
-        ax.set_title('Anomaly Detection Performance Metrics per Channel', fontsize=16, fontweight='bold', pad=20)
+        ax.set_title(title or 'Anomaly Detection Performance', fontsize=16, fontweight='bold', pad=20)
         ax.set_xticks(x)
         ax.set_xticklabels(channels, rotation=45, ha='right')
         ax.legend(fontsize=11, frameon=True, shadow=True)

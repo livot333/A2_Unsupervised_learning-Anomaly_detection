@@ -6,17 +6,12 @@ import numpy as np
 
 # Definition of the internal network architecture
 class LSTM_AE_Arch(nn.Module):
-    def __init__(self, seq_len, hidden_dim):
-        """
-        Initializes the LSTM Autoencoder layers.
-        :param seq_len: Length of the input sequences (window size)
-        :param hidden_dim: Number of features in the LSTM hidden state
-        """
+    def __init__(self, seq_len, hidden_dim, n_features=1):
         super(LSTM_AE_Arch, self).__init__()
         self.seq_len = seq_len
-        self.encoder = nn.LSTM(1, hidden_dim, batch_first=True)
+        self.encoder = nn.LSTM(n_features, hidden_dim, batch_first=True)
         self.decoder = nn.LSTM(hidden_dim, hidden_dim, batch_first=True)
-        self.output_layer = nn.Linear(hidden_dim, 1)
+        self.output_layer = nn.Linear(hidden_dim, n_features)
 
     def forward(self, x):
         """
@@ -35,28 +30,23 @@ class LSTM_AE_Arch(nn.Module):
         return self.output_layer(x_decoded)
 
 class LSTM_AE_Detector:
-    def __init__(self, seq_len=50, hidden_dim=32, epochs=5, percentile=99):
-        """
-        High-level wrapper for the LSTM Autoencoder anomaly detector.
-        """
+    def __init__(self, seq_len=50, hidden_dim=32, epochs=5, percentile=99, n_features=25):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.seq_len = seq_len
         self.hidden_dim = hidden_dim
         self.epochs = epochs
         self.percentile = percentile
-        self.model = LSTM_AE_Arch(seq_len, hidden_dim).to(self.device)
+        self.n_features = n_features
+        self.model = LSTM_AE_Arch(seq_len, hidden_dim, n_features).to(self.device)
 
     def _create_sequences(self, data):
-        """
-        Creates sliding windows from the input data.
-        Uses only the first column (Telemetry).
-        """
+        # Use first column only — primary telemetry signal
         source = data[:, 0].reshape(-1, 1)
         if len(source) < self.seq_len:
             return np.empty((0, self.seq_len, 1))
-        
-        # Efficient sliding window creation using numpy strides
-        shape = (source.shape[0] - self.seq_len + 1, self.seq_len, 1)
+
+        # Create sliding windows: (n_windows, seq_len, 1)
+        shape   = (source.shape[0] - self.seq_len + 1, self.seq_len, 1)
         strides = (source.strides[0], source.strides[0], source.strides[1])
         return np.lib.stride_tricks.as_strided(source, shape=shape, strides=strides)
 
